@@ -29,14 +29,14 @@ RUN set -ex; \
 	\
 # pecl will claim success even if one install fails, so we need to perform each install separately
 	pecl install APCu-5.1.12; \
-	pecl install geoip-1.1.1; \
 	pecl install redis-3.1.6; \
 	\
 	docker-php-ext-enable \
 		apcu \
-		geoip \
 		redis \
 	; \
+	curl -sS https://getcomposer.org/installer | php; \
+	php composer.phar require maxmind-db/reader:~1.0; \
 	\
 # reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
 	apt-mark auto '.*' > /dev/null; \
@@ -69,8 +69,8 @@ RUN set -ex; \
 	curl -fsSL -o piwik.tar.gz.asc \
 		"https://builds.matomo.org/piwik-${MATOMO_VERSION}.tar.gz.asc"; \
 	export GNUPGHOME="$(mktemp -d)"; \
-	gpg --keyserver ha.pool.sks-keyservers.net --recv-keys 814E346FA01A20DBB04B6807B5DBD5925590A237; \
-	gpg --batch --verify piwik.tar.gz.asc piwik.tar.gz; \
+	gpg --no-tty --keyserver ha.pool.sks-keyservers.net --recv-keys 814E346FA01A20DBB04B6807B5DBD5925590A237; \
+	gpg --no-tty --batch --verify piwik.tar.gz.asc piwik.tar.gz; \
 	gpgconf --kill all; \
 	rm -rf "$GNUPGHOME" piwik.tar.gz.asc; \
 	tar -xzf piwik.tar.gz -C /usr/src/; \
@@ -81,8 +81,16 @@ RUN set -ex; \
 COPY php.ini /usr/local/etc/php/conf.d/php-piwik.ini
 
 RUN set -ex; \
-	curl -fsSL -o /usr/src/piwik/misc/GeoIPCity.dat.gz https://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz; \
-	gunzip /usr/src/piwik/misc/GeoIPCity.dat.gz
+	curl -fsSL -o GeoLite2-City.tar.gz http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.tar.gz; \
+	tar zxvf GeoLite2-City.tar.gz; \
+	mv GeoLite2-City_*/GeoLite2-City.mmdb /usr/src/piwik/misc/; \
+	rm -rf GeoLite2-City.tar.gz GeoLite2-City_* 
+
+RUN set -ex; \
+	curl -fsSL -o GeoLite2-ASN.tar.gz http://geolite.maxmind.com/download/geoip/database/GeoLite2-ASN.tar.gz; \
+	tar zxvf GeoLite2-ASN.tar.gz; \
+	mv GeoLite2-ASN_*/GeoLite2-ASN.mmdb /usr/src/piwik/misc/; \
+	rm -rf GeoLite2-ASN.tar.gz GeoLite2-ASN_* 
 
 COPY docker-entrypoint.sh /entrypoint.sh
 
