@@ -1,4 +1,4 @@
-FROM php:7.1-fpm-alpine
+FROM php:7.2-fpm-alpine
 
 LABEL maintainer="pierre@piwik.org"
 
@@ -8,7 +8,6 @@ RUN set -ex; \
 		$PHPIZE_DEPS \
 		autoconf \
 		freetype-dev \
-		geoip-dev \
 		icu-dev \
 		libjpeg-turbo-dev \
 		libpng-dev \
@@ -28,13 +27,11 @@ RUN set -ex; \
 	; \
 	\
 # pecl will claim success even if one install fails, so we need to perform each install separately
-	pecl install APCu-5.1.12; \
-	pecl install geoip-1.1.1; \
+	pecl install APCu-5.1.17; \
 	pecl install redis-3.1.6; \
 	\
 	docker-php-ext-enable \
 		apcu \
-		geoip \
 		redis \
 	; \
 	\
@@ -47,7 +44,7 @@ RUN set -ex; \
 	apk add --virtual .piwik-phpext-rundeps $runDeps; \
 	apk del .build-deps
 
-ENV MATOMO_VERSION 3.6.1
+ENV MATOMO_VERSION 3.8.1
 
 RUN set -ex; \
 	apk add --no-cache --virtual .fetch-deps \
@@ -59,7 +56,7 @@ RUN set -ex; \
 	curl -fsSL -o piwik.tar.gz.asc \
 		"https://builds.matomo.org/piwik-${MATOMO_VERSION}.tar.gz.asc"; \
 	export GNUPGHOME="$(mktemp -d)"; \
-	gpg --keyserver ha.pool.sks-keyservers.net --recv-keys 814E346FA01A20DBB04B6807B5DBD5925590A237; \
+	gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys 814E346FA01A20DBB04B6807B5DBD5925590A237; \
 	gpg --batch --verify piwik.tar.gz.asc piwik.tar.gz; \
 	gpgconf --kill all; \
 	rm -rf "$GNUPGHOME" piwik.tar.gz.asc; \
@@ -70,8 +67,15 @@ RUN set -ex; \
 COPY php.ini /usr/local/etc/php/conf.d/php-piwik.ini
 
 RUN set -ex; \
-	curl -fsSL -o /usr/src/piwik/misc/GeoIPCity.dat.gz https://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz; \
-	gunzip /usr/src/piwik/misc/GeoIPCity.dat.gz
+	curl -fsSL -o GeoIPCity.tar.gz \
+		"https://geolite.maxmind.com/download/geoip/database/GeoLite2-City.tar.gz"; \
+	curl -fsSL -o GeoIPCity.tar.gz.md5 \
+		"https://geolite.maxmind.com/download/geoip/database/GeoLite2-City.tar.gz.md5"; \
+	echo "$(cat GeoIPCity.tar.gz.md5)  GeoIPCity.tar.gz" | md5sum -c -; \
+	mkdir /usr/src/GeoIPCity; \
+	tar -xf GeoIPCity.tar.gz -C /usr/src/GeoIPCity --strip-components=1; \
+	mv /usr/src/GeoIPCity/GeoLite2-City.mmdb /usr/src/piwik/misc/GeoLite2-City.mmdb; \
+	rm -rf GeoIPCity*
 
 COPY docker-entrypoint.sh /entrypoint.sh
 
